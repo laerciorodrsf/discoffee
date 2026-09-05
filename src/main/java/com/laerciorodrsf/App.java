@@ -1,6 +1,7 @@
 package com.laerciorodrsf;
 
 import com.laerciorodrsf.listeners.InstagramListener;
+import com.laerciorodrsf.listeners.TwitterListener;
 
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
@@ -12,7 +13,7 @@ public class App
     {
         JDA jda = JDABuilder.createDefault(System.getenv("DISCORD_TOKEN"))
             .enableIntents(GatewayIntent.MESSAGE_CONTENT)
-            .addEventListeners(new InstagramListener())
+            .addEventListeners(new InstagramListener(), new TwitterListener())
             .build(); 
     }
 }
