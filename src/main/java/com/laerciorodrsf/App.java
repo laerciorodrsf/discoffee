@@ -1,7 +1,7 @@
 package com.laerciorodrsf;
 
 import com.laerciorodrsf.commands.CommandRegistry;
-import com.laerciorodrsf.commands.ImageSearch;
+import com.laerciorodrsf.commands.image.ImageSearch;
 import com.laerciorodrsf.listeners.InstagramListener;
 import com.laerciorodrsf.listeners.TwitterListener;
 import com.laerciorodrsf.services.BraveImageScraper;
