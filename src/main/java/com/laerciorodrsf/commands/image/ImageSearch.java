@@ -136,14 +136,14 @@ public class ImageSearch extends ListenerAdapter {
         ScheduledFuture<?> task = scheduler.schedule(() -> {
             sessions.remove(messageId);
             expirationTask.remove(messageId);
-            removeComponnets(channel, messageId);
+            removeComponents(channel, messageId);
 
         }, 3, TimeUnit.MINUTES);
 
         expirationTask.put(messageId, task);
     }
 
-    private void removeComponnets(MessageChannel channel, String messageId) {
+    private void removeComponents(MessageChannel channel, String messageId) {
         channel.retrieveMessageById(messageId).queue(message -> {
             message.editMessageComponents()
                     .setComponents()
