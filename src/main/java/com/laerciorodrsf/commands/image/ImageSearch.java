@@ -1,14 +1,19 @@
 package com.laerciorodrsf.commands.image;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import com.laerciorodrsf.services.BraveImageScraper;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -16,7 +21,9 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 public class ImageSearch extends ListenerAdapter {
 
     private final BraveImageScraper scraper;
-    private final Map<String, ImageSession> sessions = new HashMap<>();
+    private final Map<String, ImageSession> sessions = new ConcurrentHashMap<>();
+    private final Map<String, ScheduledFuture<?>> expirationTask = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     public ImageSearch(BraveImageScraper scraper) {
         this.scraper = scraper;
@@ -40,7 +47,7 @@ public class ImageSearch extends ListenerAdapter {
             }
 
             long userId = event.getUser().getIdLong();
-            
+
             ImageSession session = new ImageSession(images, query, userId);
 
             EmbedBuilder embed = new EmbedBuilder()
@@ -58,8 +65,8 @@ public class ImageSearch extends ListenerAdapter {
                     .queue(hook -> {
                         hook.retrieveOriginal().queue(message -> {
                             String messageId = message.getId();
-
                             sessions.put(messageId, session);
+                            resetExpiration(messageId, event.getChannel());
                         });
                     });
 
@@ -76,10 +83,18 @@ public class ImageSearch extends ListenerAdapter {
 
         ImageSession session = sessions.get(messageId);
 
+        if (session == null) {
+            event.reply("Essa pesquisa expirou.")
+                    .setEphemeral(true)
+                    .queue();
+
+            return;
+        }
+
         if (event.getUser().getIdLong() != session.getUserId()) {
             event.reply("Você não pode controlar esta pesquisa.")
-                .setEphemeral(true)
-                .queue();
+                    .setEphemeral(true)
+                    .queue();
 
             return;
         }
@@ -93,6 +108,8 @@ public class ImageSearch extends ListenerAdapter {
                     .setFooter(session.getCurrentIndex() + 1 + "/" + session.getTotalImages());
 
             event.editMessageEmbeds(embed.build()).queue();
+
+            resetExpiration(messageId, event.getChannel());
         }
 
         if (event.getComponentId().equals("imagem:previous")) {
@@ -104,6 +121,33 @@ public class ImageSearch extends ListenerAdapter {
                     .setFooter(session.getCurrentIndex() + 1 + "/" + session.getTotalImages());
 
             event.editMessageEmbeds(embed.build()).queue();
+
+            resetExpiration(messageId, event.getChannel());
         }
+    }
+
+    private void resetExpiration(String messageId, MessageChannel channel) {
+        ScheduledFuture<?> oldTask = expirationTask.remove(messageId);
+
+        if (oldTask != null) {
+            oldTask.cancel(false);
+        }
+
+        ScheduledFuture<?> task = scheduler.schedule(() -> {
+            sessions.remove(messageId);
+            expirationTask.remove(messageId);
+            removeComponnets(channel, messageId);
+
+        }, 3, TimeUnit.MINUTES);
+
+        expirationTask.put(messageId, task);
+    }
+
+    private void removeComponnets(MessageChannel channel, String messageId) {
+        channel.retrieveMessageById(messageId).queue(message -> {
+            message.editMessageComponents()
+                    .setComponents()
+                    .queue();
+        });
     }
 }
